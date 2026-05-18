@@ -40,7 +40,22 @@ progress{width:100%;height:14px;border-radius:6px}
 <body>
 <div class="container">
 
-  <!-- ドラッグ＆ドロップ領域 -->
+  <!-- メニューに戻るボタンを追加 -->
+  <a href="index.html" style="
+      display: inline-block;
+      padding: 6px 12px;
+      background: var(--panel);
+      color: var(--text);
+      text-decoration: none;
+      border: 1px solid #1f3f5f;
+      border-radius: 6px;
+      font-size: 13px;
+      margin-bottom: 15px;
+      transition: all 0.3s ease;
+  " onmouseover="this.style.borderColor='var(--accent)'; this.style.color='var(--accent)';" onmouseout="this.style.borderColor='#1f3f5f'; this.style.color='var(--text)';">
+      ← メニューに戻る
+  </a>
+
   <div id="drop" class="drop">
     <span>画像をここにドラッグ＆ドロップ（複数可）</span>
     <img id="preview" alt="プレビュー" style="display:none">

@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>画像変換ツール（ZIP アーカイブのみ・圧縮なし）</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<style>
+:root{--bg:#0b1c2d;--panel:#10263d;--accent:#17b2e5;--text:#e6eef6;--sub:#9fb3c8}
+body{font-family:system-ui,sans-serif;background:var(--bg);color:var(--text);padding:20px}
+.container{max-width:900px;margin:auto;background:var(--panel);padding:20px;border-radius:12px;box-shadow:0 0 0 1px #1f3f5f}
+.drop{border:2px dashed #1f3f5f;border-radius:12px;padding:12px;margin-bottom:8px;height:260px;display:flex;align-items:center;justify-content:center;overflow:hidden;position:relative}
+.drop.dragover{border-color:var(--accent);background:rgba(23,178,229,.06)}
+#preview{max-width:100%;max-height:100%;object-fit:contain;border-radius:8px}
+.row{margin-bottom:12px}
+label{display:block;margin-bottom:4px;color:var(--sub)}
+input[type=text],
+input[type=number],
+input[type=range],
+select,
+button{
+  width:100%;padding:8px;border-radius:6px;border:1px solid #4fa3c7;background:#e6f0f7;color:#002030;box-sizing:border-box;
+}
+input[type=checkbox]{width:auto;margin:0;padding:0;border:none;background:none}
+button{background:var(--accent);font-weight:600;border:none;cursor:pointer}
+.btn-reset{background:#bfe9f6;color:#002030}
+.inline{display:flex;gap:12px}
+.keep-ratio{display:flex;align-items:center;gap:8px}
+.image-info{font-size:13px;color:var(--sub)}
+.image-info strong{color:var(--text)}
+#fileListItems,#convertedListItems{margin:6px 0 0 18px;padding:0;color:var(--sub)}
+#fileListItems li,#convertedListItems li{list-style:disc;margin:4px 0}
+.progress-wrap{display:flex;align-items:center;gap:12px}
+progress{width:100%;height:14px;border-radius:6px}
+.status-text{min-width:140px;text-align:right;color:var(--sub);font-size:13px}
+.small{font-size:13px;color:var(--sub)}
+.drop span{color:#f5fdff;}
+</style>
+</head>
+<body>
+<div class="container">
+
+  <!-- ドラッグ＆ドロップ領域 -->
+  <div id="drop" class="drop">
+    <span>画像をここにドラッグ＆ドロップ（複数可）</span>
+    <img id="preview" alt="プレビュー" style="display:none">
+  </div>
+
+  <!-- プレビュー更新ボタン -->
+  <div class="row">
+    <button id="updatePreviewBtn" type="button">プレビュー更新</button>
+  </div>
+
+  <!-- 幅・高さ・拡大モード を横並びに -->
+  <div class="row inline">
+    <div>
+      <label for="width">幅 px</label>
+      <input type="number" id="width" value="512" min="1" max="4096">
+    </div>
+    <div>
+      <label for="height">高さ px</label>
+      <input type="number" id="height" value="512" min="1" max="4096">
+    </div>
+    <div>
+      <label for="upscaleMode">拡大モード</label>
+      <select id="upscaleMode">
+        <option value="no-upscale">拡大禁止（元解像度を維持）</option>
+        <option value="upscale-smooth">拡大して補間（滑らか）</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- 縦横比チェックは別行 -->
+  <div class="row keep-ratio">
+    <label for="keepRatio">縦横比を維持</label>
+    <input type="checkbox" id="keepRatio" checked>
+  </div>
+
+  <!-- 画像形式・画質・拡張子 -->
+  <div class="row">
+    <label for="format">画像形式</label>
+    <select id="format">
+      <option value="image/png">PNG</option>
+      <option value="image/jpeg">JPEG</option>
+      <option value="image/webp">WEBP</option>
+    </select>
+  </div>
+
+  <div class="row">
+    <label for="quality">画質（JPEG / WEBP 用）</label>
+    <input type="range" id="quality" min="0.1" max="1.0" step="0.05" value="0.95">
+  </div>
+
+  <div class="row">
+    <label for="ext">拡張子</label>
+    <input type="text" id="ext" value="tbn">
+  </div>
+
+  <!-- 変換実行ボタン -->
+  <div class="row">
+    <button id="convert">画像を変換してダウンロード（複数有る場合はZIPファイル）</button>
+  </div>
+
+  <!-- リセットボタン -->
+  <div class="row">
+    <button id="reset" class="btn-reset" type="button">デフォルト値に戻す</button>
+  </div>
+
+  <!-- 画像情報・ファイルリスト・変換結果リスト -->
+  <div id="imageInfo" class="row image-info" style="display:none">
+    <div class="info-block"><strong>元画像</strong><br><span id="info-original"></span></div>
+    <div class="info-block"><strong>プレビュー変換後</strong><br><span id="info-converted"></span></div>
+  </div>
+
+  <div id="fileCount" class="row image-info" style="display:none"><strong>ドロップしたファイル数:</strong> <span id="fileCountText"></span></div>
+  <div id="fileList" class="row image-info" style="display:none"><strong>ファイル一覧:</strong><ul id="fileListItems"></ul></div>
+  <div id="convertedList" class="row image-info" style="display:none"><strong>変換結果一覧:</strong><ul id="convertedListItems"></ul></div>
+
+  <!-- 進捗表示 -->
+  <div class="row" id="progressArea" style="display:none">
+    <div class="progress-wrap"><progress id="progressBar" value="0" max="100"></progress><div class="status-text" id="statusText">準備完了</div></div>
+  </div>
+
+  <div class="row small">ZIPにするのは、複数ファイル操作に対するブラウザの互換性問題でZIP方式採用。</div>
+  <div class="row small">ZIP生成は速度優先のため、非圧縮で実施。</div>
+</div>
+
+<canvas id="canvas" style="display:none"></canvas>
+
+<script>
+/* ===================== UI 要素取得 ===================== */
+const drop            = document.getElementById('drop');
+const preview         = document.getElementById('preview');
+const canvas          = document.getElementById('canvas');
+const widthInput      = document.getElementById('width');
+const heightInput     = document.getElementById('height');
+const keepRatio       = document.getElementById('keepRatio');
+const formatSel       = document.getElementById('format');
+const quality         = document.getElementById('quality');
+const extInput        = document.getElementById('ext');
+const convertBtn      = document.getElementById('convert');
+const resetBtn        = document.getElementById('reset');
+const upscaleModeSel  = document.getElementById('upscaleMode');
+const updatePreviewBtn= document.getElementById('updatePreviewBtn');
+
+const infoOriginal    = document.getElementById('info-original');
+const infoConverted   = document.getElementById('info-converted');
+const imageInfoBox    = document.getElementById('imageInfo');
+
+const fileCountBox    = document.getElementById('fileCount');
+const fileCountText   = document.getElementById('fileCountText');
+const fileListBox     = document.getElementById('fileList');
+const fileListItems   = document.getElementById('fileListItems');
+
+const convertedListBox = document.getElementById('convertedList');
+const convertedListItems = document.getElementById('convertedListItems');
+
+const progressArea    = document.getElementById('progressArea');
+const progressBar     = document.getElementById('progressBar');
+const statusText      = document.getElementById('statusText');
+
+let droppedFiles = [];            // ドロップした File オブジェクト配列
+let previewImg = new Image();     // プレビュー用 Image オブジェクト
+let ow = 0, oh = 0;              // 元画像の幅・高さ（プレビュー時に取得）
+let firstFileMeta = null;        // 先頭ファイル情報（プレビュー表示用）
+
+/* ===================== ユーティリティ ===================== */
+function clamp(v,a,b){ return Math.min(b, Math.max(a, v)); }
+
+function formatSize(bytes){
+  if (bytes===0) return '0 B';
+  if (!bytes && bytes!==0) return '–';
+  if (bytes >= 1024*1024) return (bytes/(1024*1024)).toFixed(2) + ' MB';
+  return (bytes/1024).toFixed(1) + ' KB';
+}
+function updateQualityState(){ quality.disabled = formatSel.value === 'image/png'; }
+
+/* ---------- CanvasFit 用サイズ算出 ----------
+   maxW / maxH … UI で入力された「上限」サイズ
+   noUpscale   … 「拡大禁止」モードかどうか
+   keepRatio   … 縦横比を維持するか
+   → {w, h}（実際に描画すべきサイズ）を返す
+-------------------------------------------------------------------*/
+function getOutputSize(imgW, imgH, maxW, maxH, noUpscale, keepRatio){
+  if (!keepRatio){
+    // 縦横比無視 → そのまま上限まで（noUpscale のときは縮小のみ）
+    const w = noUpscale ? Math.min(imgW, maxW) : maxW;
+    const h = noUpscale ? Math.min(imgH, maxH) : maxH;
+    return {w, h};
+  }
+  // ---- 縦横比を保つ ----
+  const scaleW = maxW / imgW;
+  const scaleH = maxH / imgH;
+  // fit（画像がキャンバスに収まる最大スケール）を基準にする
+  let scale = Math.min(scaleW, scaleH);
+  // 拡大禁止モードなら 1 > scale のときだけ縮小、scale>1 は 1 に切り上げ
+  if (noUpscale && scale > 1) scale = 1;
+  const w = Math.round(imgW * scale);
+  const h = Math.round(imgH * scale);
+  return {w, h};
+}
+
+/* ---------- 変換が本当に必要か判定 ----------
+   - サイズが変わるか (needResize)
+   - ファイルの MIME が分かっていて、かつ出力形式が変わるか (needFmtChange)
+   必要なければ元バイナリをそのままコピー/ダウンロードする
+-------------------------------------------------------------------*/
+function conversionNeeded(img, file, outW, outH){
+  const needResize = outW !== img.width || outH !== img.height;
+  // file.type が空文字（.tbn 等）なら「形式不明」扱いで、変換しないようにする
+  const needFmtChange = file.type && formatSel.value !== file.type;
+  return needResize || needFmtChange;
+}
+
+/* ------------------- ダウンロードユーティリティ ------------------- */
+function downloadBlob(blob, filename){
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+function downloadFile(file, filename){
+  const url = URL.createObjectURL(file);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+/* ===================== プレビュー関連 ===================== */
+function updateImageInfo(){
+  if (!previewImg.src) return;
+  imageInfoBox.style.display = 'block';
+  infoOriginal.textContent = `${ow} × ${oh}px / ${firstFileMeta?.type || 'unknown'} / ${formatSize(firstFileMeta?.size)}`;
+  canvas.toBlob(blob => {
+    if (!blob) return;
+    infoConverted.textContent = `${canvas.width} × ${canvas.height}px / ${formatSel.value} / ${formatSize(blob.size)}`;
+  }, formatSel.value, Number(quality.value));
+}
+
+/* Canvas に描画（プレビュー用） – CanvasFit 版 */
+function renderToCanvasForPreview(img, drawW, drawH){
+  const mode = upscaleModeSel.value;
+  canvas.width  = drawW;
+  canvas.height = drawH;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0,0,drawW,drawH);
+  if (mode === 'no-upscale'){
+    ctx.imageSmoothingEnabled = false;
+  }else{
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+  }
+  ctx.drawImage(img, 0, 0, drawW, drawH);
+}
+
+/* Canvas に描画（エクスポート用） – 変換・ZIP 用 */
+function drawImageToCanvasForExport(img, drawW, drawH){
+  const mode = upscaleModeSel.value;
+  canvas.width  = drawW;
+  canvas.height = drawH;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0,0,drawW,drawH);
+  if (mode === 'no-upscale'){
+    ctx.imageSmoothingEnabled = false;
+  }else{
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+  }
+  ctx.drawImage(img, 0, 0, drawW, drawH);
+}
+
+/* 入力が変わったらプレビュー更新（CanvasFit 版） */
+function updatePreview(changed){
+  if (!previewImg.src) return;
+
+  const maxW = clamp(Number(widthInput.value) || ow, 1, 4096);
+  const maxH = clamp(Number(heightInput.value) || oh, 1, 4096);
+  const noUpscale = upscaleModeSel.value === 'no-upscale';
+  const out = getOutputSize(ow, oh, maxW, maxH, noUpscale, keepRatio.checked);
+
+  // 変換不要（サイズ・形式どちらも変わらない）場合は元画像をそのまま表示
+  if (!conversionNeeded(previewImg, firstFileMeta, out.w, out.h)){
+    preview.src = previewImg.src;
+    preview.style.display = 'block';
+    imageInfoBox.style.display = 'block';
+    infoOriginal.textContent = `${ow} × ${oh}px / ${firstFileMeta?.type || 'unknown'} / ${formatSize(firstFileMeta?.size)}`;
+    infoConverted.textContent = '変換なし (サイズ・形式が同一)';
+    // 入力欄はユーザーが入力したままに残す
+    return;
+  }
+
+  // 実際にリサイズが必要 → Canvas に描画しプレビュー画像を生成
+  renderToCanvasForPreview(previewImg, out.w, out.h);
+  preview.src = canvas.toDataURL(formatSel.value, Number(quality.value));
+  preview.style.display = 'block';
+  // keepRatio が ON のときは入力欄も実際に描画されるサイズに合わせて更新
+  if (keepRatio.checked){
+    widthInput.value  = out.w;
+    heightInput.value = out.h;
+  }
+  updateImageInfo();
+}
+
+/* ===================== ドラッグ＆ドロップ ===================== */
+drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('dragover'); });
+drop.addEventListener('dragleave', () => drop.classList.remove('dragover'));
+drop.addEventListener('drop', e => {
+  e.preventDefault(); drop.classList.remove('dragover');
+  droppedFiles = Array.from(e.dataTransfer.files || []);
+  if (!droppedFiles.length){
+    fileCountBox.style.display = 'none';
+    fileListBox.style.display   = 'none';
+    return;
+  }
+
+  // ファイル数・一覧表示
+  fileCountBox.style.display = 'block';
+  fileCountText.textContent   = `${droppedFiles.length} ファイル`;
+  fileListBox.style.display   = 'block';
+  fileListItems.innerHTML     = '';
+  droppedFiles.forEach(f => {
+    const li = document.createElement('li');
+    li.textContent = f.name;
+    fileListItems.appendChild(li);
+  });
+
+  // 先頭画像だけでプレビュー作成
+  const first = droppedFiles[0];
+  firstFileMeta = {name:first.name, size:first.size, type:first.type};
+  const reader = new FileReader();
+  reader.onload = () => {
+    previewImg.onload = () => {
+      ow = previewImg.width;
+      oh = previewImg.height;
+      // 初期は横幅 512px に合わせて縦横比維持で高さを決定
+      const initW = 512;
+      const init = getOutputSize(ow, oh, initW, 4096, true, true);
+      widthInput.value  = init.w;
+      heightInput.value = init.h;
+      updatePreview('width');
+    };
+    previewImg.src = reader.result;
+  };
+  reader.readAsDataURL(first);
+});
+
+/* ===================== UI イベント ===================== */
+updatePreviewBtn.addEventListener('click', () => updatePreview('width'));
+
+resetBtn.addEventListener('click', () => {
+  if (!previewImg.src || !ow || !oh) return;
+  upscaleModeSel.value = 'no-upscale';
+  keepRatio.checked    = true;
+  const initW = 512;
+  const init = getOutputSize(ow, oh, initW, 4096, true, true);
+  widthInput.value  = init.w;
+  heightInput.value = init.h;
+  quality.value     = 0.95;
+  formatSel.value   = 'image/png';
+  updateQualityState();
+  updatePreview('width');
+});
+
+widthInput.addEventListener('blur',  () => updatePreview('width'));
+heightInput.addEventListener('blur', () => updatePreview('height'));
+
+[quality, formatSel, keepRatio, upscaleModeSel].forEach(el => {
+  el.addEventListener('input',  () => updatePreview());
+  el.addEventListener('change', () => updatePreview());
+});
+formatSel.addEventListener('change', updateQualityState);
+
+/* ===================== ヘルパー（FileReader / Image） ===================== */
+function readFileAsDataURL(file){
+  return new Promise((resolve,reject) => {
+    const r = new FileReader();
+    r.onload  = () => resolve(r.result);
+    r.onerror = () => reject(new Error('ファイル読み込みエラー'));
+    r.readAsDataURL(file);
+  });
+}
+function loadImage(dataUrl){
+  return new Promise((resolve,reject) => {
+    const i = new Image();
+    i.onload  = () => resolve(i);
+    i.onerror = () => reject(new Error('画像ロードエラー'));
+    i.src = dataUrl;
+  });
+}
+
+/* ===================== 変換実行（ZIP・単体） ===================== */
+convertBtn.addEventListener('click', async () => {
+  if (!droppedFiles.length){
+    alert('先に画像をドロップしてください');
+    return;
+  }
+  if (typeof JSZip === 'undefined'){
+    alert('JSZip が読み込まれていません。');
+    return;
+  }
+
+  const noUpscale = upscaleModeSel.value === 'no-upscale';
+
+  /* ---------- 1 ファイルだけの場合は ZIP せず直接保存 ---------- */
+  if (droppedFiles.length === 1){
+    const file = droppedFiles[0];
+    statusText.textContent = `処理中: ${file.name}`;
+    progressArea.style.display = 'block';
+    progressBar.value = 0;
+
+    const dataUrl = await readFileAsDataURL(file);
+    const img = await loadImage(dataUrl);
+
+    const maxW = clamp(Number(widthInput.value) || img.width, 1, 4096);
+    const maxH = clamp(Number(heightInput.value) || img.height, 1, 4096);
+    const out = getOutputSize(img.width, img.height, maxW, maxH, noUpscale, keepRatio.checked);
+
+    // 変換不要 → そのまま元ファイルだけをダウンロード（拡張子だけ置き換える）
+    if (!conversionNeeded(img, file, out.w, out.h)){
+      const baseName = file.name.replace(/\.[^.]+$/,'');
+      const outName  = `${baseName}.${extInput.value}`;
+      downloadFile(file, outName);
+      statusText.textContent = '完了: 1 / 1';
+      progressBar.value = 100;
+      return;
+    }
+
+    // 変換が必要 → Canvas に描画して Blob 化
+    drawImageToCanvasForExport(img, out.w, out.h);
+    const blob = await new Promise(res => canvas.toBlob(res, formatSel.value, Number(quality.value)));
+    const baseName = file.name.replace(/\.[^.]+$/,'');
+    const outName  = `${baseName}.${extInput.value}`;
+    downloadBlob(blob, outName);
+
+    statusText.textContent = '完了: 1 / 1';
+    progressBar.value = 100;
+    return;
+  }
+
+  /* ---------- 2 ファイル以上の場合は ZIP にまとめる ---------- */
+  // UI 初期化
+  convertedListBox.style.display = 'block';
+  convertedListItems.innerHTML = '';
+  progressArea.style.display = 'block';
+  progressBar.value = 0;
+  statusText.textContent = `処理中: 0 / ${droppedFiles.length}`;
+
+  const zip = new JSZip();
+  const compressionMethod = "STORE";   // 常に非圧縮（STORE）
+
+  for (let i = 0; i < droppedFiles.length; i++){
+    const file = droppedFiles[i];
+    statusText.textContent = `処理中: ${i+1} / ${droppedFiles.length}`;
+    progressBar.value = Math.round(i / droppedFiles.length * 100);
+
+    try{
+      const dataUrl = await readFileAsDataURL(file);
+      const img = await loadImage(dataUrl);
+
+      const maxW = clamp(Number(widthInput.value) || img.width, 1, 4096);
+      const maxH = clamp(Number(heightInput.value) || img.height, 1, 4096);
+      const out = getOutputSize(img.width, img.height, maxW, maxH, noUpscale, keepRatio.checked);
+
+      // ------------------- 変換不要か判定 -------------------
+      if (!conversionNeeded(img, file, out.w, out.h)){
+        // 元ファイルだけを ZIP に入れる（拡張子だけユーザー指定に置換）
+        const baseName = file.name.replace(/\.[^.]+$/,'');
+        const outName  = `${baseName}.${extInput.value}`;
+        zip.file(outName, file, {compression: compressionMethod});
+        const li = document.createElement('li');
+        li.textContent = `${file.name} → ${outName} / 変換なし (サイズ・形式が同一)`;
+        convertedListItems.appendChild(li);
+        continue;   // 次のファイルへ
+      }
+
+      // ------------------- 変換が必要 -------------------
+      drawImageToCanvasForExport(img, out.w, out.h);
+      const blob = await new Promise(res => canvas.toBlob(res, formatSel.value, Number(quality.value)));
+      if (!blob) throw new Error('Blob 生成に失敗しました');
+
+      const baseName = file.name.replace(/\.[^.]+$/,'');
+      const outName  = `${baseName}.${extInput.value}`;
+      zip.file(outName, blob, {compression: compressionMethod});
+
+      // 結果リストに情報を追加
+      const li = document.createElement('li');
+      const origSize = formatSize(file.size);
+      const convSize = formatSize(blob.size);
+      const ratio    = file.size ? ((blob.size / file.size) * 100).toFixed(1) + '%' : '–';
+      li.textContent = `${file.name} → ${outName} / ${out.w}×${out.h}px / ${formatSel.value} / ${convSize} (元 ${origSize}, ${ratio})`;
+      convertedListItems.appendChild(li);
+
+      // UI が固まらないよう軽く待機（任意）
+      await new Promise(r => setTimeout(r,30));
+    }catch(err){
+      const li = document.createElement('li');
+      li.textContent = `${file.name} → エラー: ${err.message}`;
+      convertedListItems.appendChild(li);
+    }
+  }
+
+  // ZIP 本体生成（STORE がデフォルト）
+  statusText.textContent = 'ZIP を生成中...';
+  progressBar.value = 0;
+  const zipBlob = await zip.generateAsync(
+    {type:'blob', compression:compressionMethod},
+    meta => { progressBar.value = Math.round(meta.percent); }
+  );
+
+  // ダウンロード開始
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(zipBlob);
+  a.download = 'KODIのスマートプレイリスト用画像TBN.zip';
+  a.click();
+  URL.revokeObjectURL(a.href);
+
+  progressBar.value = 100;
+  statusText.textContent = `完了: ${droppedFiles.length} / ${droppedFiles.length}`;
+  updatePreview('width');
+});
+
+/* 初期状態の UI 整理 */
+updateQualityState();
+</script>
+</body>
+
+</html>

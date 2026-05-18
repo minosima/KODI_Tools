@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>KODI スマートプレイリスト作成</title>
+
+<style>
+/* ===== 全体 ===== */
+body {
+    background-color: #0d1a22;
+    color: #cfd9e3;
+    font-family: sans-serif;
+    padding: 20px;
+}
+
+h2, h3 {
+    color: #3fbac2;
+}
+
+/* ===== レイアウト ===== */
+.row {
+    display: flex;
+    gap: 12px;
+}
+
+/* ===== セクションカード ===== */
+.card {
+    background-color: #122029;
+    border: 1px solid #2f6f73;
+    border-radius: 10px;
+    padding: 16px;
+    margin-top: 20px;
+}
+
+.card h3:first-child {
+    margin-top: 0;
+}
+
+/* ===== 入力欄 ===== */
+input,
+textarea,
+select {
+    background-color: #16262f;
+    color: #cfd9e3;
+    border: 1px solid #2f6f73;
+
+    border-radius: 10px;
+    font-size: 14px;
+    padding: 8px 10px;
+    min-height: 38px;
+    box-sizing: border-box;
+}
+
+textarea {
+    width: 100%;
+    min-height: 120px;
+    resize: vertical;
+}
+
+input::placeholder,
+textarea::placeholder {
+    color: #8fb3b8;
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+    outline: none;
+    border-color: #3fbac2;
+    box-shadow: 0 0 0 2px rgba(63,186,194,0.25);
+}
+
+/* ===== ボタン ===== */
+button {
+    background-color: #2f9aa0;
+    color: #ffffff;
+    border: none;
+    padding: 8px 16px;
+    cursor: pointer;
+    border-radius: 6px;
+    font-size: 14px;
+}
+
+button:hover {
+    background-color: #3fbac2;
+}
+
+/* ===== 別名義ブロック ===== */
+.alias-block {
+    background-color: #16262f;
+    border: 1px solid #2f6f73;
+    border-radius: 6px;
+    padding: 10px;
+    margin-top: 10px;
+}
+
+/* ===== XML プレビュー ===== */
+pre {
+    background-color: #0f1f28;
+    border: 1px solid #2f6f73;
+    border-radius: 6px;
+    padding: 12px;
+    overflow-x: auto;
+    font-family: Consolas, Menlo, monospace;
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+/* ===== 必須 ===== */
+.required {
+    color: #ff7b7b;
+}
+</style>
+</head>
+
+<body>
+
+<h2>KODI スマートプレイリスト作成</h2>
+
+<div class="card">
+    <h3>表示名（必須・プレイリスト名）<span class="required">*</span></h3>
+    <input id="displayName" style="width:100%;" placeholder="例：岡村靖幸 / King Gnu">
+</div>
+
+<div class="card">
+    <h3>日本語 姓 / 名</h3>
+    <div class="row">
+        <input id="jpS" placeholder="姓">
+        <input id="jpG" placeholder="名">
+    </div>
+
+    <h3>ローマ字 surname / given（半角スペースのみ）</h3>
+    <div class="row">
+        <input id="enS" placeholder="surname">
+        <input id="enG" placeholder="given">
+    </div>
+</div>
+
+<div class="card">
+    <h3>別名義（同一フォーマット）</h3>
+    <div id="aliases"></div>
+    <button onclick="addAlias()">＋ 追加</button>
+</div>
+
+<div class="card">
+    <h3>別名義（直接追加）</h3>
+    <textarea id="aliasesRaw" placeholder="1行1項目"></textarea>
+</div>
+
+<div class="card">
+    <h3>検索条件</h3>
+    <select id="operator">
+        <option value="contains">含む（contains）</option>
+        <option value="is">完全一致（is）</option>
+    </select>
+
+    <h3>プレイリスト種別</h3>
+    <select id="type">
+        <option value="albums">albums</option>
+        <option value="songs">songs</option>
+    </select>
+
+    <h3>ソート</h3>
+    <div class="row">
+        <select id="orderField">
+            <option value="year">year（リリース年）</option>
+            <option value="title">title（曲名）</option>
+            <option value="artist">artist（アーティスト名）</option>
+            <option value="album">album（アルバム名）</option>
+            <option value="rating">rating（評価）</option>
+        </select>
+        <select id="orderDir">
+            <option value="descending">降順</option>
+            <option value="ascending">昇順</option>
+        </select>
+    </div>
+</div>
+
+<div class="card">
+    <button onclick="generate()">xsp 作成・ダウンロード</button>
+    <pre id="preview"></pre>
+</div>
+
+<script>
+function esc(s) {
+    return s.replace(/[<>&'"]/g, c =>
+        ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&apos;'}[c])
+    );
+}
+
+function addAlias() {
+    const d = document.createElement('div');
+    d.className = 'alias-block';
+    d.innerHTML = `
+        <div class="row">
+            <input class="ajpS" placeholder="姓">
+            <input class="ajpG" placeholder="名">
+        </div>
+        <div class="row">
+            <input class="aenS" placeholder="surname">
+            <input class="aenG" placeholder="given">
+        </div>`;
+    document.getElementById('aliases').appendChild(d);
+}
+
+function addJP(set, s, g) {
+    set.add(s + g);
+    set.add(s + ' ' + g);
+    set.add(s + '　' + g);
+}
+
+function addEN(set, s, g) {
+    set.add(s + ' ' + g);
+    set.add(g + ' ' + s);
+}
+
+function generate() {
+    const name = displayName.value.trim();
+    if (!name) {
+        alert('表示名は必須です');
+        return;
+    }
+
+    const values = new Set();
+    values.add(name);
+
+    if (jpS.value && jpG.value) addJP(values, jpS.value.trim(), jpG.value.trim());
+    if (enS.value && enG.value) addEN(values, enS.value.trim(), enG.value.trim());
+
+    document.querySelectorAll('.alias-block').forEach(b => {
+        if (b.querySelector('.ajpS').value && b.querySelector('.ajpG').value)
+            addJP(values, b.querySelector('.ajpS').value.trim(), b.querySelector('.ajpG').value.trim());
+        if (b.querySelector('.aenS').value && b.querySelector('.aenG').value)
+            addEN(values, b.querySelector('.aenS').value.trim(), b.querySelector('.aenG').value.trim());
+    });
+
+    aliasesRaw.value.split('\n')
+        .map(v => v.trim())
+        .filter(v => v)
+        .forEach(v => values.add(v));
+
+    const xmlValues = [...values]
+        .map(v => `        <value>${esc(v)}</value>`)
+        .join('\n');
+
+    const xml =
+`<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>
+<smartplaylist type="${type.value}">
+    <icon>${esc(name)}.tbn</icon>
+    <name>${esc(name)}</name>
+    <match>all</match>
+    <rule field="artist" operator="${operator.value}">
+${xmlValues}
+    </rule>
+    <order direction="${orderDir.value}">${orderField.value}</order>
+</smartplaylist>`;
+
+    preview.textContent = xml;
+
+    const blob = new Blob([xml], { type: 'application/xml;charset=utf-8;' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `${name}.xsp`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+}
+</script>
+
+</body>
+</html>
+
+<p><span itemscope itemtype="http://schema.org/Photograph"><img src="https://cdn-ak.f.st-hatena.com/images/fotolife/n/ncos1/20251220/20251220124355.png" width="1024" height="1024" loading="lazy" title="" class="hatena-fotolife" itemprop="image"></span></p>

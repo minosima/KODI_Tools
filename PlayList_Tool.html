@@ -1,118 +1,28 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-<meta charset="UTF-8">
-<title>KODI スマートプレイリスト作成</title>
-
-<style>
-/* ===== 全体 ===== */
-body {
-    background-color: #0d1a22;
-    color: #cfd9e3;
-    font-family: sans-serif;
-    padding: 20px;
-}
-
-h2, h3 {
-    color: #3fbac2;
-}
-
-/* ===== レイアウト ===== */
-.row {
-    display: flex;
-    gap: 12px;
-}
-
-/* ===== セクションカード ===== */
-.card {
-    background-color: #122029;
-    border: 1px solid #2f6f73;
-    border-radius: 10px;
-    padding: 16px;
-    margin-top: 20px;
-}
-
-.card h3:first-child {
-    margin-top: 0;
-}
-
-/* ===== 入力欄 ===== */
-input,
-textarea,
-select {
-    background-color: #16262f;
-    color: #cfd9e3;
-    border: 1px solid #2f6f73;
-
-    border-radius: 10px;
-    font-size: 14px;
-    padding: 8px 10px;
-    min-height: 38px;
-    box-sizing: border-box;
-}
-
-textarea {
-    width: 100%;
-    min-height: 120px;
-    resize: vertical;
-}
-
-input::placeholder,
-textarea::placeholder {
-    color: #8fb3b8;
-}
-
-input:focus,
-textarea:focus,
-select:focus {
-    outline: none;
-    border-color: #3fbac2;
-    box-shadow: 0 0 0 2px rgba(63,186,194,0.25);
-}
-
-/* ===== ボタン ===== */
-button {
-    background-color: #2f9aa0;
-    color: #ffffff;
-    border: none;
-    padding: 8px 16px;
-    cursor: pointer;
-    border-radius: 6px;
-    font-size: 14px;
-}
-
-button:hover {
-    background-color: #3fbac2;
-}
-
-/* ===== 別名義ブロック ===== */
-.alias-block {
-    background-color: #16262f;
-    border: 1px solid #2f6f73;
-    border-radius: 6px;
-    padding: 10px;
-    margin-top: 10px;
-}
-
-/* ===== XML プレビュー ===== */
-pre {
-    background-color: #0f1f28;
-    border: 1px solid #2f6f73;
-    border-radius: 6px;
-    padding: 12px;
-    overflow-x: auto;
-    font-family: Consolas, Menlo, monospace;
-    font-size: 13px;
-    line-height: 1.5;
-}
-
-/* ===== 必須 ===== */
-.required {
-    color: #ff7b7b;
-}
-</style>
+    <meta charset="UTF-8">
+    <title>KODI Music Playlist Generator (Limit & Random対応)</title>
+    <style>
+        body { background-color: #0d1a22; color: #cfd9e3; font-family: sans-serif; padding: 20px; line-height: 1.4; max-width: 900px; margin: 0 auto; }
+        h2, h3 { color: #3fbac2; margin-top: 0; margin-bottom: 10px; }
+        .row { display: flex; gap: 12px; margin-bottom: 8px; }
+        .card { background-color: #122029; border: 1px solid #2f6f73; border-radius: 10px; padding: 16px; margin-bottom: 20px; }
+        input, textarea, select { background-color: #16262f; color: #cfd9e3; border: 1px solid #2f6f73; border-radius: 6px; font-size: 14px; padding: 8px 10px; box-sizing: border-box; }
+        button { background-color: #2f9aa0; color: #ffffff; border: none; padding: 10px 18px; cursor: pointer; border-radius: 6px; font-size: 14px; transition: 0.2s; }
+        button:hover { background-color: #3fbac2; }
+        button.secondary { background-color: #445663; }
+        button.danger { background-color: #dc3545; }
+        button.generate { width: 100%; font-size: 16px; font-weight: bold; background-color: #3fbac2; color: #0d1a22; margin-top: 10px; }
+        .rule-row { background: #1a2c38; padding: 12px; border-radius: 6px; margin-bottom: 10px; border-left: 4px solid #3fbac2; }
+        .artist-helper, .genre-helper { background: #122029; padding: 12px; border: 1px dashed #3fbac2; border-radius: 6px; margin-top: 10px; display: none; }
+        .genre-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+        .genre-tag { font-size: 11px; background: #1a2c38; border: 1px solid #3fbac2; color: #3fbac2; padding: 3px 8px; border-radius: 4px; cursor: pointer; }
+        .genre-tag.active { background: #3fbac2; color: #0d1a22; font-weight: bold; }
+        pre { background-color: #0f1f28; border: 1px solid #2f6f73; border-radius: 6px; padding: 12px; overflow-x: auto; font-family: monospace; font-size: 13px; color: #a5bdc0; line-height: 1.5; }
+        .hint { font-size: 12px; color: #8fb3b8; margin-bottom: 5px; }
+    </style>
 </head>
-
 <body>
 
 <a href="index.html" style="
@@ -130,156 +40,261 @@ pre {
     ← メニューに戻る
 </a>
 
-<h2>KODI スマートプレイリスト作成</h2>
+<h2>KODI Music Playlist Generator</h2>
 
 <div class="card">
-    <h3>表示名（必須・プレイリスト名）<span class="required">*</span></h3>
-    <input id="displayName" style="width:100%;" placeholder="例：岡村靖幸 / King Gnu">
-</div>
-
-<div class="card">
-    <h3>日本語 姓 / 名</h3>
+    <h3>1. 音楽設定</h3>
     <div class="row">
-        <input id="jpS" placeholder="姓">
-        <input id="jpG" placeholder="名">
-    </div>
-
-    <h3>ローマ字 surname / given（半角スペースのみ）</h3>
-    <div class="row">
-        <input id="enS" placeholder="surname">
-        <input id="enG" placeholder="given">
+        <div style="flex:2;"><label class="hint">プレイリスト名</label><input id="playlistName" style="width:100%;" placeholder="例：Random 10 Songs"></div>
+        <div style="flex:1;"><label class="hint">対象</label><select id="mediaType" style="width:100%;"><option value="albums">アルバム (Albums)</option><option value="songs">曲 (Songs)</option></select></div>
     </div>
 </div>
 
 <div class="card">
-    <h3>別名義（同一フォーマット）</h3>
-    <div id="aliases"></div>
-    <button onclick="addAlias()">＋ 追加</button>
+    <h3>2. 絞り込みルール</h3>
+    <div id="rulesContainer"></div>
+    <button type="button" class="secondary" onclick="addRule()">＋ ルールを追加</button>
+    <div style="margin-top:15px;"><label class="hint">条件の判定</label><select id="matchType"><option value="all">すべての条件に一致 (AND)</option><option value="one">いずれかの条件に一致 (OR)</option></select></div>
 </div>
 
 <div class="card">
-    <h3>別名義（直接追加）</h3>
-    <textarea id="aliasesRaw" placeholder="1行1項目"></textarea>
-</div>
-
-<div class="card">
-    <h3>検索条件</h3>
-    <select id="operator">
-        <option value="contains">含む（contains）</option>
-        <option value="is">完全一致（is）</option>
-    </select>
-
-    <h3>プレイリスト種別</h3>
-    <select id="type">
-        <option value="albums">albums</option>
-        <option value="songs">songs</option>
-    </select>
-
-    <h3>ソート</h3>
+    <h3>3. 表示順序と制限</h3>
     <div class="row">
-        <select id="orderField">
-            <option value="year">year（リリース年）</option>
-            <option value="title">title（曲名）</option>
-            <option value="artist">artist（アーティスト名）</option>
-            <option value="album">album（アルバム名）</option>
-            <option value="rating">rating（評価）</option>
-        </select>
-        <select id="orderDir">
-            <option value="descending">降順</option>
-            <option value="ascending">昇順</option>
-        </select>
+        <div style="flex:2;">
+            <label class="hint">並び順</label>
+            <select id="orderField" style="width:100%;">
+                <option value="year">年</option>
+                <option value="random">ランダム (Random)</option>
+                <option value="artist">アーティスト</option>
+                <option value="title">タイトル</option>
+                <option value="rating">評価</option>
+                <option value="playcount">再生回数</option>
+            </select>
+        </div>
+        <div style="flex:1;">
+            <label class="hint">順序</label>
+            <select id="orderDir" style="width:100%;">
+                <option value="descending">降順</option>
+                <option value="ascending">昇順</option>
+            </select>
+        </div>
+        <div style="flex:1;">
+            <label class="hint">項目数(0で無制限)</label>
+            <input type="number" id="limitCount" value="0" min="0" style="width:100%;">
+        </div>
     </div>
 </div>
 
-<div class="card">
-    <button onclick="generate()">xsp 作成・ダウンロード</button>
-    <pre id="preview"></pre>
+<button class="generate" onclick="generateXSP()">XMLファイルを生成・ダウンロード</button>
+<div class="card" id="resultArea" style="display:none; margin-top:20px;"></div>
+
+<hr style="margin: 40px 0 20px; border: 0; border-top: 1px solid #2f6f73;">
+<div class="card" style="border-style: dashed; opacity: 0.8;">
+    <h3>設定：マイ・ジャンル管理 (自動保存)</h3>
+    <textarea id="customGenreInput" placeholder="J-Pop, Rock, Jazz..." style="height: 100px; width:100%;" oninput="updateGenrePresets()"></textarea>
 </div>
 
 <script>
-function esc(s) {
-    return s.replace(/[<>&'"]/g, c =>
-        ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&apos;'}[c])
-    );
-}
+    let currentGenres = ["J-Pop", "Rock", "Jazz", "Classical", "Electronic", "Anime"];
 
-function addAlias() {
-    const d = document.createElement('div');
-    d.className = 'alias-block';
-    d.innerHTML = `
-        <div class="row">
-            <input class="ajpS" placeholder="姓">
-            <input class="ajpG" placeholder="名">
-        </div>
-        <div class="row">
-            <input class="aenS" placeholder="surname">
-            <input class="aenG" placeholder="given">
-        </div>`;
-    document.getElementById('aliases').appendChild(d);
-}
+    window.onload = function() {
+        const saved = localStorage.getItem('kodi_custom_genres');
+        if (saved) { document.getElementById('customGenreInput').value = saved; applyGenreInput(saved); }
+        addRule();
+    };
 
-function addJP(set, s, g) {
-    set.add(s + g);
-    set.add(s + ' ' + g);
-    set.add(s + '　' + g);
-}
+    function esc(s) { return s ? s.replace(/[<>&'"]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&apos;'}[c])) : ""; }
 
-function addEN(set, s, g) {
-    set.add(s + ' ' + g);
-    set.add(g + ' ' + s);
-}
-
-function generate() {
-    const name = displayName.value.trim();
-    if (!name) {
-        alert('表示名は必須です');
-        return;
+    function updateGenrePresets() {
+        const input = document.getElementById('customGenreInput').value;
+        localStorage.setItem('kodi_custom_genres', input);
+        applyGenreInput(input);
     }
 
-    const values = new Set();
-    values.add(name);
+    function applyGenreInput(text) {
+        if (!text.trim()) return;
+        currentGenres = [...new Set(text.split(/[,\n]/).map(g => g.trim()).filter(g => g))];
+        document.querySelectorAll('.genre-tags').forEach(container => {
+            const row = container.closest('.rule-row');
+            const currentValInput = row.querySelector('.ruleValue');
+            const currentVals = currentValInput ? currentValInput.value.split(',').map(v => v.trim()) : [];
+            container.innerHTML = currentGenres.map(g => `<span class="genre-tag ${currentVals.includes(g) ? 'active' : ''}" onclick="toggleGenre(this, '${esc(g)}')">${esc(g)}</span>`).join('');
+        });
+    }
 
-    if (jpS.value && jpG.value) addJP(values, jpS.value.trim(), jpG.value.trim());
-    if (enS.value && enG.value) addEN(values, enS.value.trim(), enG.value.trim());
+    function toggleGenre(tagElement, value) {
+        const row = tagElement.closest('.rule-row');
+        const input = row.querySelector('.ruleValue');
+        let selected = input.value.split(',').map(v => v.trim()).filter(v => v);
+        if (selected.includes(value)) { selected = selected.filter(v => v !== value); tagElement.classList.remove('active'); }
+        else { selected.push(value); tagElement.classList.add('active'); }
+        input.value = selected.join(', ');
+    }
 
-    document.querySelectorAll('.alias-block').forEach(b => {
-        if (b.querySelector('.ajpS').value && b.querySelector('.ajpG').value)
-            addJP(values, b.querySelector('.ajpS').value.trim(), b.querySelector('.ajpG').value.trim());
-        if (b.querySelector('.aenS').value && b.querySelector('.aenG').value)
-            addEN(values, b.querySelector('.aenS').value.trim(), b.querySelector('.aenG').value.trim());
-    });
+    function addRule() {
+        const container = document.getElementById('rulesContainer');
+        const row = document.createElement('div');
+        row.className = 'rule-row';
+        row.innerHTML = `
+            <div class="row">
+                <select class="field" style="flex:1;" onchange="toggleHelper(this)">
+                    <option value="artist">アーティスト</option>
+                    <option value="genre">ジャンル</option>
+                    <option value="title">タイトル</option>
+                    <option value="year">年</option>
+                    <option value="rating">評価</option>
+                    <option value="path">パス</option>
+                </select>
+                <select class="operator" style="flex:1;">
+                    <option value="contains">を含む</option>
+                    <option value="is">と一致する</option>
+                    <option value="doesnotcontain">を含まない</option>
+                </select>
+                <button class="danger" onclick="this.parentElement.parentElement.remove()">削除</button>
+            </div>
+            <div class="artist-helper" style="display:block;">
+                <div class="hint">漢字 (そのまま出力)</div>
+                <div class="row"><input class="jpS" placeholder="姓（漢字）" style="flex:1;"><input class="jpG" placeholder="名（漢字）" style="flex:1;"></div>
+                <div class="hint">ひらがな (カナ・ローマ字を自動生成)</div>
+                <div class="row"><input class="kanaS" placeholder="せい" style="flex:1;"><input class="kanaG" placeholder="めい" style="flex:1;"></div>
+                <div class="hint">直接入力 / 海外アーティスト (1行1項目)</div>
+                <textarea class="rawList" placeholder="例: The Beatles&#10;例: 宇多田ヒカル" style="height:50px; margin-top:5px; width:100%;"></textarea>
+            </div>
+            <div class="genre-helper">
+                <div class="genre-tags">${currentGenres.map(g => `<span class="genre-tag" onclick="toggleGenre(this, '${esc(g)}')">${esc(g)}</span>`).join('')}</div>
+            </div>
+            <div class="normal-input" style="display:none; margin-top:8px;"><input type="text" class="ruleValue" placeholder="値を入力" style="width:100%;"></div>
+        `;
+        container.appendChild(row);
+    }
 
-    aliasesRaw.value.split('\n')
-        .map(v => v.trim())
-        .filter(v => v)
-        .forEach(v => values.add(v));
+    function toggleHelper(select) {
+        const row = select.closest('.rule-row');
+        row.querySelector('.artist-helper').style.display = select.value === 'artist' ? 'block' : 'none';
+        row.querySelector('.genre-helper').style.display = select.value === 'genre' ? 'block' : 'none';
+        row.querySelector('.normal-input').style.display = (select.value !== 'artist') ? 'block' : 'none';
+    }
 
-    const xmlValues = [...values]
-        .map(v => `        <value>${esc(v)}</value>`)
-        .join('\n');
+    function getFullVariations(text, allowReverse = false) {
+        if (!text) return [];
+        let results = new Set();
+        const jpHalf = text.trim().replace(/　/g, ' ');
+        const jpFull = text.trim().replace(/ /g, '　');
+        [jpHalf, jpFull].forEach(t => {
+            results.add(t);
+            const katakana = t.replace(/[\u3041-\u3096]/g, m => String.fromCharCode(m.charCodeAt(0) + 0x60));
+            results.add(katakana);
+        });
+        const romanMap = {
+            'あ':['a'],'い':['i'],'う':['u'],'え':['e'],'お':['o'],'か':['ka'],'き':['ki'],'く':['ku'],'け':['ke'],'こ':['ko'],'さ':['sa'],'し':['shi','si'],'す':['su'],'せ':['se'],'そ':['so'],'た':['ta'],'ち':['chi','ti'],'つ':['tsu','tu'],'て':['te'],'と':['to'],'な':['na'],'に':['ni'],'ぬ':['nu'],'ね':['ne'],'の':['no'],'は':['ha'],'ひ':['hi'],'ふ':['fu','hu'],'へ':['he'],'ほ':['ho'],'ま':['ma'],'み':['mi'],'む':['mu'],'め':['me'],'も':['mo'],'や':['ya'],'ゆ':['yu'],'よ':['yo'],'ら':['ra'],'り':['ri'],'る':['ru'],'れ':['re'],'ろ':['ro'],'わ':['wa'],'を':['wo','o'],'ん':['n','nn'],'が':['ga'],'ぎ':['gi'],'ぐ':['gu'],'げ':['ge'],'ご':['go'],'ざ':['za'],'じ':['ji','zi'],'ず':['zu'],'ぜ':['ze'],'ぞ':['zo'],'だ':['da'],'ぢ':['ji','di'],'づ':['zu','du'],'て':['de'],'ど':['do'],'ば':['ba'],'び':['bi'],'ぶ':['bu'],'べ':['be'],'ぼ':['bo'],'ぱ':['pa'],'ぴ':['pi'],'ぷ':['pu'],'ぺ':['pe'],'ぽ':['po'],'きゃ':['kya'],'きゅ':['kyu'],'きょ':['kyo'],'しゃ':['sha','sya'],'しゅ':['shu','syu'],'しょ':['sho','syo'],'ちゃ':['cha','tya'],'ちゅ':['chu','tyu'],'ちょ':['cho','tyo'],'にゃ':['nya'],'にゅ':['nyu'],'にょ':['nyo'],'ひゃ':['hya'],'ひゅ':['hyu'],'ひょ':['hyo'],'みゃ':['mya'],'みゅ':['myu'],'みょ':['myo'],'りゃ':['rya'],'りゅ':['ryu'],'りょ':['ryo'],'ぎゃ':['gya'],'ぎゅ':['gyu'],'ぎょ':['gyo'],'じゃ':['ja','zya'],'じゅ':['ju','zyu'],'じょ':['jo','zyo'],'びゃ':['bya'],'びゅ':['byu'],'びょ':['byo'],'ぴゃ':['pya'],'ぴゅ':['pyu'],'ぴょ':['pyo'],'っ':['t','s','k','p']
+        };
+        function toRoman(str) {
+            let s = str.replace(/　/g, ' ');
+            let patterns = [''];
+            let i = 0;
+            while (i < s.length) {
+                let found = false;
+                if (i + 1 < s.length) {
+                    let doubleChar = s.substring(i, i + 2);
+                    if (romanMap[doubleChar]) {
+                        let nextPatterns = [];
+                        patterns.forEach(p => { romanMap[doubleChar].forEach(r => nextPatterns.push(p + r)); });
+                        patterns = nextPatterns;
+                        i += 2; found = true;
+                    }
+                }
+                if (!found) {
+                    let singleChar = s.substring(i, i + 1);
+                    if (romanMap[singleChar]) {
+                        let nextPatterns = [];
+                        patterns.forEach(p => {
+                            if (singleChar === 'っ' && i + 1 < s.length) {
+                                let nextChar = s.substring(i+1, i+2);
+                                let nextRom = romanMap[nextChar] ? romanMap[nextChar][0][0] : '';
+                                nextPatterns.push(p + nextRom);
+                            } else {
+                                romanMap[singleChar].forEach(r => nextPatterns.push(p + r));
+                            }
+                        });
+                        patterns = nextPatterns;
+                    } else {
+                        patterns = patterns.map(p => p + singleChar);
+                    }
+                    i++;
+                }
+            }
+            return patterns;
+        }
+        toRoman(jpHalf).forEach(r => results.add(r));
+        if(allowReverse && jpHalf.includes(' ')) {
+            const parts = jpHalf.split(' ');
+            if(parts.length === 2) {
+                const reversed = parts[1] + ' ' + parts[0];
+                toRoman(reversed).forEach(r => results.add(r));
+            }
+        }
+        return Array.from(results);
+    }
 
-    const xml =
-`<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>
-<smartplaylist type="${type.value}">
-    <icon>${esc(name)}.tbn</icon>
-    <name>${esc(name)}</name>
-    <match>all</match>
-    <rule field="artist" operator="${operator.value}">
-${xmlValues}
-    </rule>
-    <order direction="${orderDir.value}">${orderField.value}</order>
-</smartplaylist>`;
-
-    preview.textContent = xml;
-
-    const blob = new Blob([xml], { type: 'application/xml;charset=utf-8;' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = `${name}.xsp`;
-    a.click();
-    URL.revokeObjectURL(a.href);
-}
+    function generateXSP() {
+        const name = document.getElementById('playlistName').value.trim() || 'Playlist';
+        const limit = parseInt(document.getElementById('limitCount').value) || 0;
+        let xml = `<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>\n<smartplaylist type="${document.getElementById('mediaType').value}">\n`;
+        xml += `    <name>${esc(name)}</name>\n    <match>${document.getElementById('matchType').value}</match>\n`;
+        
+        document.querySelectorAll('.rule-row').forEach(row => {
+            const field = row.querySelector('.field').value;
+            const op = row.querySelector('.operator').value;
+            
+            if(field === 'artist') {
+                const v = new Set();
+                const kanjiS = row.querySelector('.jpS').value.trim();
+                const kanjiG = row.querySelector('.jpG').value.trim();
+                if(kanjiS || kanjiG) {
+                    v.add((kanjiS + kanjiG).trim());
+                    v.add((kanjiS + ' ' + kanjiG).trim());
+                    v.add((kanjiS + '　' + kanjiG).trim());
+                }
+                const kanaS = row.querySelector('.kanaS').value.trim();
+                const kanaG = row.querySelector('.kanaG').value.trim();
+                if(kanaS || kanaG) {
+                    const basePattern = (kanaS + ' ' + kanaG).trim();
+                    getFullVariations(basePattern, true).forEach(variation => v.add(variation)); 
+                }
+                row.querySelector('.rawList').value.split('\n').forEach(val => { 
+                    const line = val.trim();
+                    if(line) {
+                        if(/[ぁ-ん]/.test(line)) { getFullVariations(line, false).forEach(variation => v.add(variation)); }
+                        else { v.add(line); }
+                    }
+                });
+                if(v.size > 0){ 
+                    xml += `    <rule field="artist" operator="${op}">\n`; 
+                    v.forEach(val => xml += `        <value>${esc(val)}</value>\n`); 
+                    xml += `    </rule>\n`; 
+                }
+            } else {
+                const valInput = row.querySelector('.ruleValue');
+                if(valInput) {
+                    const vals = valInput.value.split(',').map(v => v.trim()).filter(v => v);
+                    if(vals.length > 0){ 
+                        xml += `    <rule field="${field}" operator="${op}">\n`; 
+                        vals.forEach(v => xml += `        <value>${esc(v)}</value>\n`); 
+                        xml += `    </rule>\n`; 
+                    }
+                }
+            }
+        });
+        
+        if (limit > 0) { xml += `    <limit>${limit}</limit>\n`; }
+        xml += `    <order direction="${document.getElementById('orderDir').value}">${document.getElementById('orderField').value}</order>\n</smartplaylist>`;
+        
+        document.getElementById('resultArea').style.display = 'block';
+        document.getElementById('resultArea').innerHTML = `<div style="display:flex; justify-content:space-between; align-items:center;"><h3>Preview</h3><button class="secondary" onclick="copyText()">Copy</button></div><pre id="preview">${esc(xml)}</pre>`;
+        const blob = new Blob([xml], { type: 'application/xml' });
+        const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `${name}.xsp`; a.click();
+    }
+    function copyText() { navigator.clipboard.writeText(document.getElementById('preview').textContent).then(() => alert('Copied!')); }
 </script>
-
 </body>
 </html>

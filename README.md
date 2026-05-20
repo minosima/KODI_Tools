@@ -9,11 +9,18 @@ https://ncos1.hatenablog.com/
 
 ＊　日本人アーティストの表記揺れ対応の例
 姓・名
-松任谷　由美
-matusutouya yumi
+松任谷　由実
+まつとうや　ゆみ
 を入力すれば、下記のアーティスト名を自動で補完するので表記揺れをカバーできるはず。
-松任谷由美
-松任谷 由美
-松任谷　由美
-yumi matsutouya
-matsutouya yumi
+姓名間の空白の全角半角、ローマ表記の姓名逆順、ローマ字の訓令式・ヘボン式・両方混在を自動生成しています。
+        <value>松任谷由美</value>
+        <value>松任谷 由美</value>
+        <value>松任谷　由美</value>
+        <value>まつとうや ゆみ</value>
+        <value>マツトウヤ ユミ</value>
+        <value>まつとうや　ゆみ</value>
+        <value>マツトウヤ　ユミ</value>
+        <value>matsutouya yumi</value>
+        <value>matutouya yumi</value>
+        <value>yumi matsutouya</value>
+        <value>yumi matutouya</value>

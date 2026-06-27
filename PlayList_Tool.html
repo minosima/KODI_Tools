@@ -109,7 +109,7 @@
             }))
         };
         historyStack.push(state);
-        if (historyStack.length > 5) historyStack.shift();
+        if (historyStack.length > 50) historyStack.shift();
         document.getElementById('restoreBtn').disabled = false;
     }
 

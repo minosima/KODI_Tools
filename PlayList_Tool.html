@@ -44,7 +44,7 @@
 
 <div class="card" style="margin-bottom: 10px;">
     <button class="secondary" onclick="clearAllFields()">入力をクリア</button>
-    <button class="secondary" id="restoreBtn" onclick="restoreState()" disabled>情報を復元する（5ステップまで）</button>
+    <button class="secondary" id="restoreBtn" onclick="restoreState()" disabled>情報を復元する（50ステップまで）</button>
 </div>
 
 <div class="card">
@@ -129,7 +129,7 @@
             }))
         };
         historyStack.push(state);
-        if (historyStack.length > 5) historyStack.shift();
+        if (historyStack.length > 50) historyStack.shift();
         document.getElementById('restoreBtn').disabled = false;
     }
 

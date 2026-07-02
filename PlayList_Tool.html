@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>KODI Music Playlist Generator</title>
+    <title>KODI Music Playlist Generator (Limit & Random対応)</title>
     <style>
         body { background-color: #0d1a22; color: #cfd9e3; font-family: sans-serif; padding: 20px; line-height: 1.4; max-width: 900px; margin: 0 auto; }
         h2, h3 { color: #3fbac2; margin-top: 0; margin-bottom: 10px; }
@@ -19,8 +19,8 @@
         .genre-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
         .genre-tag { font-size: 11px; background: #1a2c38; border: 1px solid #3fbac2; color: #3fbac2; padding: 3px 8px; border-radius: 4px; cursor: pointer; }
         .genre-tag.active { background: #3fbac2; color: #0d1a22; font-weight: bold; }
-        .hint { font-size: 12px; color: #8fb3b8; margin-bottom: 5px; }
         #imagePreview { max-width: 100px; max-height: 100px; border: 1px solid #2f6f73; margin-top: 10px; display: none; }
+        .hint { font-size: 12px; color: #8fb3b8; margin-bottom: 5px; }
     </style>
 </head>
 <body>
@@ -29,7 +29,7 @@
 
 <h2>KODI Music Playlist Generator</h2>
 
-<div class="card">
+<div class="card" style="margin-bottom: 10px;">
     <button class="secondary" onclick="clearAllFields()">入力をクリア</button>
     <button class="secondary" id="restoreBtn" onclick="restoreState()" disabled>情報を復元する（50ステップまで）</button>
 </div>
@@ -99,68 +99,46 @@
 
 <button class="generate" onclick="generateXSP()">XMLファイルを生成・ダウンロード</button>
 
+<hr style="margin: 40px 0 20px; border: 0; border-top: 1px solid #2f6f73;">
+<div class="card" style="border-style: dashed; opacity: 0.8;">
+    <h3>設定：マイ・ジャンル管理 (自動保存)</h3>
+    <textarea id="customGenreInput" placeholder="J-Pop, Rock, Jazz..." style="height: 100px; width:100%;" oninput="updateGenrePresets(); saveState()"></textarea>
+</div>
+
 <canvas id="canvas" style="display:none;"></canvas>
 
 <script>
     let currentGenres = ["J-Pop", "Rock", "Jazz", "Classical", "Electronic", "Anime"];
     let historyStack = [];
 
-    window.onload = function() {
-        addRule();
-    };
-
+    // 履歴保存用関数
     function saveState() {
-        const rules = Array.from(document.querySelectorAll('.rule-row')).map(row => ({
-            field: row.querySelector('.field').value,
-            op: row.querySelector('.operator').value,
-            jpS: row.querySelector('.jpS')?.value,
-            jpG: row.querySelector('.jpG')?.value,
-            kanaS: row.querySelector('.kanaS')?.value,
-            kanaG: row.querySelector('.kanaG')?.value,
-            rawList: row.querySelector('.rawList')?.value,
-            ruleValue: row.querySelector('.ruleValue')?.value
-        }));
-
         const state = {
             playlistName: document.getElementById('playlistName').value,
             mediaType: document.getElementById('mediaType').value,
-            imgWidth: document.getElementById('imgWidth').value,
-            imgHeight: document.getElementById('imgHeight').value,
-            scaleMode: document.getElementById('scaleMode').value,
-            keepAspect: document.getElementById('keepAspect').checked,
-            imgFormat: document.getElementById('imgFormat').value,
-            imgQuality: document.getElementById('imgQuality').value,
-            matchType: document.getElementById('matchType').value,
-            orderField: document.getElementById('orderField').value,
-            orderDir: document.getElementById('orderDir').value,
-            limitCount: document.getElementById('limitCount').value,
-            rules: rules
+            rules: Array.from(document.querySelectorAll('.rule-row')).map(row => ({
+                field: row.querySelector('.field').value,
+                op: row.querySelector('.operator').value,
+                jpS: row.querySelector('.jpS')?.value || "",
+                jpG: row.querySelector('.jpG')?.value || "",
+                kanaS: row.querySelector('.kanaS')?.value || "",
+                kanaG: row.querySelector('.kanaG')?.value || "",
+                rawList: row.querySelector('.rawList')?.value || "",
+                ruleValue: row.querySelector('.ruleValue')?.value || ""
+            }))
         };
-
         historyStack.push(JSON.stringify(state));
         if (historyStack.length > 50) historyStack.shift();
         document.getElementById('restoreBtn').disabled = false;
     }
 
+    // 履歴復元用関数
     function restoreState() {
-        if (historyStack.length === 0) return;
+        if (historyStack.length < 2) return;
         historyStack.pop(); // 現在の状態を捨てる
-        if (historyStack.length === 0) return;
-        
         const state = JSON.parse(historyStack.pop());
         document.getElementById('playlistName').value = state.playlistName;
         document.getElementById('mediaType').value = state.mediaType;
-        document.getElementById('imgWidth').value = state.imgWidth;
-        document.getElementById('imgHeight').value = state.imgHeight;
-        document.getElementById('scaleMode').value = state.scaleMode;
-        document.getElementById('keepAspect').checked = state.keepAspect;
-        document.getElementById('imgFormat').value = state.imgFormat;
-        document.getElementById('imgQuality').value = state.imgQuality;
-        document.getElementById('matchType').value = state.matchType;
-        document.getElementById('orderField').value = state.orderField;
-        document.getElementById('orderDir').value = state.orderDir;
-        document.getElementById('limitCount').value = state.limitCount;
-
         const container = document.getElementById('rulesContainer');
         container.innerHTML = "";
         state.rules.forEach(r => {
@@ -190,6 +168,41 @@
         saveState();
     }
 
+    window.onload = function() {
+        const saved = localStorage.getItem('kodi_custom_genres');
+        if (saved) { document.getElementById('customGenreInput').value = saved; applyGenreInput(saved); }
+        addRule();
+    };
+
+    function esc(s) { return s ? s.replace(/[<>&'"]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&apos;'}[c])) : ""; }
+
+    function updateGenrePresets() {
+        const input = document.getElementById('customGenreInput').value;
+        localStorage.setItem('kodi_custom_genres', input);
+        applyGenreInput(input);
+    }
+
+    function applyGenreInput(text) {
+        if (!text.trim()) return;
+        currentGenres = [...new Set(text.split(/[,\n]/).map(g => g.trim()).filter(g => g))];
+        document.querySelectorAll('.genre-tags').forEach(container => {
+            const row = container.closest('.rule-row');
+            const currentValInput = row.querySelector('.ruleValue');
+            const currentVals = currentValInput ? currentValInput.value.split(',').map(v => v.trim()) : [];
+            container.innerHTML = currentGenres.map(g => `<span class="genre-tag ${currentVals.includes(g) ? 'active' : ''}" onclick="toggleGenre(this, '${esc(g)}')">${esc(g)}</span>`).join('');
+        });
+    }
+
+    function toggleGenre(tagElement, value) {
+        const row = tagElement.closest('.rule-row');
+        const input = row.querySelector('.ruleValue');
+        let selected = input.value.split(',').map(v => v.trim()).filter(v => v);
+        if (selected.includes(value)) { selected = selected.filter(v => v !== value); tagElement.classList.remove('active'); }
+        else { selected.push(value); tagElement.classList.add('active'); }
+        input.value = selected.join(', ');
+        saveState();
+    }
+
     function addRule() {
         const container = document.getElementById('rulesContainer');
         const row = document.createElement('div');
@@ -212,11 +225,17 @@
                 <button class="danger" onclick="this.parentElement.parentElement.remove(); saveState()">削除</button>
             </div>
             <div class="artist-helper" style="display:block;">
-                <input class="jpS" placeholder="姓" oninput="saveState()" style="width:48%"> <input class="jpG" placeholder="名" oninput="saveState()" style="width:48%">
-                <input class="kanaS" placeholder="せい" oninput="saveState()" style="width:48%"> <input class="kanaG" placeholder="めい" oninput="saveState()" style="width:48%">
-                <textarea class="rawList" placeholder="直接入力" oninput="saveState()" style="width:100%; height:40px; margin-top:5px;"></textarea>
+                <div class="hint">漢字 (そのまま出力)</div>
+                <div class="row"><input class="jpS" placeholder="姓（漢字）" oninput="saveState()" style="flex:1;"><input class="jpG" placeholder="名（漢字）" oninput="saveState()" style="flex:1;"></div>
+                <div class="hint">ひらがな (カナ・ローマ字を自動生成)</div>
+                <div class="row"><input class="kanaS" placeholder="せい" oninput="saveState()" style="flex:1;"><input class="kanaG" placeholder="めい" oninput="saveState()" style="flex:1;"></div>
+                <div class="hint">直接入力 / 海外アーティスト (1行1項目)</div>
+                <textarea class="rawList" placeholder="例: The Beatles&#10;例: 宇多田ヒカル" oninput="saveState()" style="height:50px; margin-top:5px; width:100%;"></textarea>
             </div>
-            <div class="normal-input" style="display:none;"><input type="text" class="ruleValue" placeholder="値" oninput="saveState()" style="width:100%;"></div>
+            <div class="genre-helper" style="display:none;">
+                <div class="genre-tags">${currentGenres.map(g => `<span class="genre-tag" onclick="toggleGenre(this, '${esc(g)}')">${esc(g)}</span>`).join('')}</div>
+            </div>
+            <div class="normal-input" style="display:none; margin-top:8px;"><input type="text" class="ruleValue" placeholder="値を入力" oninput="saveState()" style="width:100%;"></div>
         `;
         container.appendChild(row);
         saveState();
@@ -225,7 +244,8 @@
     function toggleHelper(select) {
         const row = select.closest('.rule-row');
         row.querySelector('.artist-helper').style.display = select.value === 'artist' ? 'block' : 'none';
-        row.querySelector('.normal-input').style.display = (select.value !== 'artist') ? 'block' : 'none';
+        row.querySelector('.genre-helper').style.display = select.value === 'genre' ? 'block' : 'none';
+        row.querySelector('.normal-input').style.display = (select.value !== 'artist' && select.value !== 'genre') ? 'block' : 'none';
     }
 
     function clearAllFields() {
@@ -235,30 +255,34 @@
         addRule();
     }
 
-    function esc(s) { return s ? s.replace(/[<>&'"]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&apos;'}[c])) : ""; }
-
     function generateXSP() {
         const name = document.getElementById('playlistName').value.trim() || 'Playlist';
         let xml = `<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>\n<smartplaylist type="${document.getElementById('mediaType').value}">\n`;
         xml += `    <name>${esc(name)}</name>\n    <match>${document.getElementById('matchType').value}</match>\n`;
-        
         document.querySelectorAll('.rule-row').forEach(row => {
             const field = row.querySelector('.field').value;
             const op = row.querySelector('.operator').value;
-            xml += `    <rule field="${field}" operator="${op}">\n`;
             if(field === 'artist') {
-                xml += `        <value>${esc(row.querySelector('.jpS').value + row.querySelector('.jpG').value)}</value>\n`;
+                const vals = [];
+                const s = row.querySelector('.jpS').value.trim(), g = row.querySelector('.jpG').value.trim();
+                if(s || g) vals.push((s+g).trim());
+                row.querySelector('.rawList').value.split('\n').forEach(v => { if(v.trim()) vals.push(v.trim()); });
+                if(vals.length > 0) {
+                    xml += `    <rule field="artist" operator="${op}">\n`;
+                    vals.forEach(v => xml += `        <value>${esc(v)}</value>\n`);
+                    xml += `    </rule>\n`;
+                }
             } else {
-                xml += `        <value>${esc(row.querySelector('.ruleValue').value)}</value>\n`;
+                const val = row.querySelector('.ruleValue').value.trim();
+                if(val) {
+                    xml += `    <rule field="${field}" operator="${op}">\n        <value>${esc(val)}</value>\n    </rule>\n`;
+                }
             }
-            xml += `    </rule>\n`;
         });
-        
         xml += `    <order direction="${document.getElementById('orderDir').value}">${document.getElementById('orderField').value}</order>\n</smartplaylist>`;
         const blob = new Blob([xml], { type: 'application/xml' });
         const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `${name}.xsp`; a.click();
         
-        // 画像処理ロジックは以前のものを維持
         const fileInput = document.getElementById('imageInput');
         if (fileInput.files && fileInput.files[0]) {
             const reader = new FileReader();
@@ -275,7 +299,7 @@
                         a.href = URL.createObjectURL(b);
                         a.download = `${name}.${document.getElementById('imgFormat').value === 'image/jpeg' ? 'jpg' : 'png'}`;
                         a.click();
-                    });
+                    }, document.getElementById('imgFormat').value, document.getElementById('imgQuality').value / 100);
                 };
                 img.src = e.target.result;
             };

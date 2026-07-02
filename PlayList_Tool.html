@@ -19,32 +19,18 @@
         .genre-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
         .genre-tag { font-size: 11px; background: #1a2c38; border: 1px solid #3fbac2; color: #3fbac2; padding: 3px 8px; border-radius: 4px; cursor: pointer; }
         .genre-tag.active { background: #3fbac2; color: #0d1a22; font-weight: bold; }
-        pre { background-color: #0f1f28; border: 1px solid #2f6f73; border-radius: 6px; padding: 12px; overflow-x: auto; font-family: monospace; font-size: 13px; color: #a5bdc0; line-height: 1.5; }
         .hint { font-size: 12px; color: #8fb3b8; margin-bottom: 5px; }
+        #imagePreview { max-width: 100px; max-height: 100px; border: 1px solid #2f6f73; margin-top: 10px; display: none; }
     </style>
 </head>
 <body>
 
-<a href="index.html" style="
-    display: inline-block;
-    padding: 6px 12px;
-    background-color: #16262f;
-    color: #cfd9e3;
-    text-decoration: none;
-    border: 1px solid #2f6f73;
-    border-radius: 6px;
-    font-size: 13px;
-    margin-bottom: 15px;
-    transition: all 0.3s ease;
-" onmouseover="this.style.backgroundColor='#2f6f73'; this.style.color='#ffffff';" onmouseout="this.style.backgroundColor='#16262f'; this.style.color='#cfd9e3';">
-    ← メニューに戻る
-</a>
+<a href="index.html" style="display: inline-block; padding: 6px 12px; background-color: #16262f; color: #cfd9e3; text-decoration: none; border: 1px solid #2f6f73; border-radius: 6px; font-size: 13px; margin-bottom: 15px; transition: all 0.3s ease;">← メニューに戻る</a>
 
 <h2>KODI Music Playlist Generator</h2>
 
-<div class="card" style="margin-bottom: 10px;">
+<div class="card">
     <button class="secondary" onclick="clearAllFields()">入力をクリア</button>
-    <button class="secondary" id="restoreBtn" onclick="restoreState()" disabled>情報を復元する（50ステップまで）</button>
 </div>
 
 <div class="card">
@@ -53,6 +39,26 @@
         <div style="flex:2;"><label class="hint">プレイリスト名</label><input id="playlistName" style="width:100%;" placeholder="例：Random 10 Songs"></div>
         <div style="flex:1;"><label class="hint">対象</label><select id="mediaType" style="width:100%;"><option value="albums">アルバム (Albums)</option><option value="songs">曲 (Songs)</option></select></div>
     </div>
+</div>
+
+<div class="card">
+    <h3>1.5 画像変換設定</h3>
+    <input type="file" id="imageInput" accept="image/*" style="margin-bottom: 10px;" onchange="previewImage(this)">
+    <br><img id="imagePreview" src="#" alt="Preview">
+    <div class="row" style="margin-top: 10px;">
+        <div><label class="hint">幅 px</label><input type="number" id="imgWidth" value="512"></div>
+        <div><label class="hint">高さ px</label><input type="number" id="imgHeight" value="512"></div>
+    </div>
+    <div class="row">
+        <div style="flex:1;"><label class="hint">拡大モード</label>
+            <select id="scaleMode" style="width:100%;"><option value="none">拡大禁止（元解像度を維持）</option><option value="fill">全体を埋める</option></select>
+        </div>
+        <div style="display:flex; align-items:center; padding-top:15px;"><label><input type="checkbox" id="keepAspect" checked> 縦横比を維持</label></div>
+    </div>
+    <label class="hint">画像形式</label>
+    <select id="imgFormat" style="margin-bottom:10px;"><option value="image/png">PNG</option><option value="image/jpeg">JPEG</option></select>
+    <label class="hint">画質 (JPEG用)</label>
+    <input type="range" id="imgQuality" min="0" max="100" value="95" style="width:100%;">
 </div>
 
 <div class="card">
@@ -91,7 +97,6 @@
 </div>
 
 <button class="generate" onclick="generateXSP()">XMLファイルを生成・ダウンロード</button>
-<div class="card" id="resultArea" style="display:none; margin-top:20px;"></div>
 
 <hr style="margin: 40px 0 20px; border: 0; border-top: 1px solid #2f6f73;">
 <div class="card" style="border-style: dashed; opacity: 0.8;">
@@ -99,9 +104,10 @@
     <textarea id="customGenreInput" placeholder="J-Pop, Rock, Jazz..." style="height: 100px; width:100%;" oninput="updateGenrePresets()"></textarea>
 </div>
 
+<canvas id="canvas" style="display:none;"></canvas>
+
 <script>
     let currentGenres = ["J-Pop", "Rock", "Jazz", "Classical", "Electronic", "Anime"];
-    let historyStack = [];
 
     window.onload = function() {
         const saved = localStorage.getItem('kodi_custom_genres');
@@ -109,68 +115,22 @@
         addRule();
     };
 
-    function saveState() {
-        const state = {
-            name: document.getElementById('playlistName').value,
-            mediaType: document.getElementById('mediaType').value,
-            matchType: document.getElementById('matchType').value,
-            orderField: document.getElementById('orderField').value,
-            orderDir: document.getElementById('orderDir').value,
-            limitCount: document.getElementById('limitCount').value,
-            rules: Array.from(document.querySelectorAll('.rule-row')).map(row => ({
-                field: row.querySelector('.field').value,
-                op: row.querySelector('.operator').value,
-                jpS: row.querySelector('.jpS')?.value || "",
-                jpG: row.querySelector('.jpG')?.value || "",
-                kanaS: row.querySelector('.kanaS')?.value || "",
-                kanaG: row.querySelector('.kanaG')?.value || "",
-                rawList: row.querySelector('.rawList')?.value || "",
-                ruleValue: row.querySelector('.ruleValue')?.value || ""
-            }))
-        };
-        historyStack.push(state);
-        if (historyStack.length > 50) historyStack.shift();
-        document.getElementById('restoreBtn').disabled = false;
+    function previewImage(input) {
+        const preview = document.getElementById('imagePreview');
+        if (input.files && input.files[0]) {
+            const reader = new FileReader();
+            reader.onload = e => { preview.src = e.target.result; preview.style.display = 'block'; };
+            reader.readAsDataURL(input.files[0]);
+        }
     }
 
     function clearAllFields() {
-        saveState();
         document.getElementById('playlistName').value = "";
         document.getElementById('rulesContainer').innerHTML = "";
+        document.getElementById('imageInput').value = "";
+        document.getElementById('imagePreview').style.display = 'none';
         addRule();
         document.getElementById('limitCount').value = "0";
-    }
-
-    function restoreState() {
-        if (historyStack.length === 0) return;
-        const state = historyStack.pop();
-        if (historyStack.length === 0) document.getElementById('restoreBtn').disabled = true;
-
-        document.getElementById('playlistName').value = state.name;
-        document.getElementById('mediaType').value = state.mediaType;
-        document.getElementById('matchType').value = state.matchType;
-        document.getElementById('orderField').value = state.orderField;
-        document.getElementById('orderDir').value = state.orderDir;
-        document.getElementById('limitCount').value = state.limitCount;
-
-        const container = document.getElementById('rulesContainer');
-        container.innerHTML = "";
-        state.rules.forEach(r => {
-            addRule();
-            const lastRow = container.lastElementChild;
-            lastRow.querySelector('.field').value = r.field;
-            lastRow.querySelector('.operator').value = r.op;
-            if(r.field === 'artist') {
-                lastRow.querySelector('.jpS').value = r.jpS;
-                lastRow.querySelector('.jpG').value = r.jpG;
-                lastRow.querySelector('.kanaS').value = r.kanaS;
-                lastRow.querySelector('.kanaG').value = r.kanaG;
-                lastRow.querySelector('.rawList').value = r.rawList;
-            } else {
-                lastRow.querySelector('.ruleValue').value = r.ruleValue;
-            }
-            toggleHelper(lastRow.querySelector('.field'));
-        });
     }
 
     function esc(s) { return s ? s.replace(/[<>&'"]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&apos;'}[c])) : ""; }
@@ -255,9 +215,7 @@
             const katakana = t.replace(/[\u3041-\u3096]/g, m => String.fromCharCode(m.charCodeAt(0) + 0x60));
             results.add(katakana);
         });
-        const romanMap = {
-            'あ':['a'],'い':['i'],'う':['u'],'え':['e'],'お':['o'],'か':['ka'],'き':['ki'],'く':['ku'],'け':['ke'],'こ':['ko'],'さ':['sa'],'し':['shi','si'],'す':['su'],'せ':['se'],'そ':['so'],'た':['ta'],'ち':['chi','ti'],'つ':['tsu','tu'],'て':['te'],'と':['to'],'な':['na'],'に':['ni'],'ぬ':['nu'],'ね':['ne'],'の':['no'],'は':['ha'],'ひ':['hi'],'ふ':['fu','hu'],'へ':['he'],'ほ':['ho'],'ま':['ma'],'み':['mi'],'む':['mu'],'め':['me'],'も':['mo'],'や':['ya'],'ゆ':['yu'],'よ':['yo'],'ら':['ra'],'り':['ri'],'る':['ru'],'れ':['re'],'ろ':['ro'],'わ':['wa'],'を':['wo','o'],'ん':['n','nn'],'が':['ga'],'ぎ':['gi'],'ぐ':['gu'],'げ':['ge'],'ご':['go'],'ざ':['za'],'じ':['ji','zi'],'ず':['zu'],'ぜ':['ze'],'ぞ':['zo'],'だ':['da'],'ぢ':['ji','di'],'づ':['zu','du'],'て':['de'],'ど':['do'],'ば':['ba'],'び':['bi'],'ぶ':['bu'],'べ':['be'],'ぼ':['bo'],'ぱ':['pa'],'ぴ':['pi'],'ぷ':['pu'],'ぺ':['pe'],'ぽ':['po'],'きゃ':['kya'],'きゅ':['kyu'],'きょ':['kyo'],'しゃ':['sha','sya'],'しゅ':['shu','syu'],'しょ':['sho','syo'],'ちゃ':['cha','tya'],'ちゅ':['chu','tyu'],'ちょ':['cho','tyo'],'にゃ':['nya'],'にゅ':['nyu'],'にょ':['nyo'],'ひゃ':['hya'],'ひゅ':['hyu'],'ひょ':['hyo'],'みゃ':['mya'],'みゅ':['myu'],'みょ':['myo'],'りゃ':['rya'],'りゅ':['ryu'],'りょ':['ryo'],'ぎゃ':['gya'],'ぎゅ':['gyu'],'ぎょ':['gyo'],'じゃ':['ja','zya'],'じゅ':['ju','zyu'],'じょ':['jo','zyo'],'びゃ':['bya'],'びゅ':['byu'],'びょ':['byo'],'ぴゃ':['pya'],'ぴゅ':['pyu'],'ぴょ':['pyo'],'っ':['t','s','k','p']
-        };
+        const romanMap = {'あ':['a'],'い':['i'],'う':['u'],'え':['e'],'お':['o'],'か':['ka'],'き':['ki'],'く':['ku'],'け':['ke'],'こ':['ko'],'さ':['sa'],'し':['shi','si'],'す':['su'],'せ':['se'],'そ':['so'],'た':['ta'],'ち':['chi','ti'],'つ':['tsu','tu'],'て':['te'],'と':['to'],'な':['na'],'に':['ni'],'ぬ':['nu'],'ね':['ne'],'の':['no'],'は':['ha'],'ひ':['hi'],'ふ':['fu','hu'],'へ':['he'],'ほ':['ho'],'ま':['ma'],'み':['mi'],'む':['mu'],'め':['me'],'も':['mo'],'や':['ya'],'ゆ':['yu'],'よ':['yo'],'ら':['ra'],'り':['ri'],'る':['ru'],'れ':['re'],'ろ':['ro'],'わ':['wa'],'を':['wo','o'],'ん':['n','nn'],'が':['ga'],'ぎ':['gi'],'ぐ':['gu'],'げ':['ge'],'ご':['go'],'ざ':['za'],'じ':['ji','zi'],'ず':['zu'],'ぜ':['ze'],'ぞ':['zo'],'だ':['da'],'ぢ':['ji','di'],'づ':['zu','du'],'て':['de'],'ど':['do'],'ば':['ba'],'び':['bi'],'ぶ':['bu'],'べ':['be'],'ぼ':['bo'],'ぱ':['pa'],'ぴ':['pi'],'ぷ':['pu'],'ぺ':['pe'],'ぽ':['po'],'きゃ':['kya'],'きゅ':['kyu'],'きょ':['kyo'],'しゃ':['sha','sya'],'しゅ':['shu','syu'],'しょ':['sho','syo'],'ちゃ':['cha','tya'],'ちゅ':['chu','tyu'],'ちょ':['cho','tyo'],'にゃ':['nya'],'にゅ':['nyu'],'にょ':['nyo'],'ひゃ':['hya'],'ひゅ':['hyu'],'ひょ':['hyo'],'みゃ':['mya'],'みゅ':['myu'],'みょ':['myo'],'りゃ':['rya'],'りゅ':['ryu'],'りょ':['ryo'],'ぎゃ':['gya'],'ぎゅ':['gyu'],'ぎょ':['gyo'],'じゃ':['ja','zya'],'じゅ':['ju','zyu'],'じょ':['jo','zyo'],'びゃ':['bya'],'びゅ':['byu'],'びょ':['byo'],'ぴゃ':['pya'],'ぴゅ':['pyu'],'ぴょ':['pyo'],'っ':['t','s','k','p']};
         function toRoman(str) {
             let s = str.replace(/ /g, ' ');
             let patterns = [''];
@@ -311,18 +269,15 @@
         const limit = parseInt(document.getElementById('limitCount').value) || 0;
         let xml = `<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>\n<smartplaylist type="${document.getElementById('mediaType').value}">\n`;
         xml += `    <name>${esc(name)}</name>\n    <match>${document.getElementById('matchType').value}</match>\n`;
-        
         document.querySelectorAll('.rule-row').forEach(row => {
             const field = row.querySelector('.field').value;
             const op = row.querySelector('.operator').value;
-            
             if(field === 'artist') {
                 const v = new Set();
                 const kanjiS = row.querySelector('.jpS').value.trim();
                 const kanjiG = row.querySelector('.jpG').value.trim();
                 if(kanjiS || kanjiG) {
                     v.add((kanjiS + kanjiG).trim());
-                    v.add((kanjiS + ' ' + kanjiG).trim());
                     v.add((kanjiS + ' ' + kanjiG).trim());
                 }
                 const kanaS = row.querySelector('.kanaS').value.trim();
@@ -355,19 +310,39 @@
                 }
             }
         });
-        
         if (limit > 0) { xml += `    <limit>${limit}</limit>\n`; }
         xml += `    <order direction="${document.getElementById('orderDir').value}">${document.getElementById('orderField').value}</order>\n</smartplaylist>`;
         
-        document.getElementById('resultArea').style.display = 'block';
-        document.getElementById('resultArea').innerHTML = `<div style="display:flex; justify-content:space-between; align-items:center;"><h3>Preview</h3><button class="secondary" onclick="copyText()">Copy</button></div><pre id="preview">${esc(xml)}</pre>`;
         const blob = new Blob([xml], { type: 'application/xml' });
         const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `${name}.xsp`; a.click();
-
+        processAndDownloadImage(name);
         clearAllFields();
     }
-    
-    function copyText() { navigator.clipboard.writeText(document.getElementById('preview').textContent).then(() => alert('Copied!')); }
+
+    function processAndDownloadImage(name) {
+        const fileInput = document.getElementById('imageInput');
+        if (!fileInput.files || !fileInput.files[0]) return;
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const img = new Image();
+            img.onload = () => {
+                const canvas = document.getElementById('canvas');
+                let w = parseInt(document.getElementById('imgWidth').value);
+                let h = parseInt(document.getElementById('imgHeight').value);
+                canvas.width = w; canvas.height = h;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, w, h);
+                canvas.toBlob(blob => {
+                    const a = document.createElement('a');
+                    a.href = URL.createObjectURL(blob);
+                    a.download = `${name}.${document.getElementById('imgFormat').value === 'image/jpeg' ? 'jpg' : 'png'}`;
+                    a.click();
+                }, document.getElementById('imgFormat').value, document.getElementById('imgQuality').value / 100);
+            };
+            img.src = e.target.result;
+        };
+        reader.readAsDataURL(fileInput.files[0]);
+    }
 </script>
 </body>
 </html>

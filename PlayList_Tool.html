@@ -253,6 +253,10 @@
         document.getElementById('playlistName').value = "";
         document.getElementById('rulesContainer').innerHTML = "";
         addRule();
+　　document.getElementById('imageInput').value = ""; // ファイル選択を解除
+        const preview = document.getElementById('imagePreview');
+        preview.src = "#";
+        preview.style.display = 'none'; // プレビューを非表示
     }
 
     function generateXSP() {
